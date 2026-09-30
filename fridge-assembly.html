@@ -1,0 +1,133 @@
+<div id="fridge-assembly">
+  <div class="viz-row" style="justify-content:space-between">
+    <h2>MRAZÍK · skladanie chladničky</h2>
+    <span class="text-small">Interaktívny 3D model</span>
+  </div>
+  <div id="fridge-stage" style="width:100%;height:460px;position:relative;touch-action:none">
+    <div id="fridge-loading" role="status" style="position:absolute;inset:45% 0;text-align:center">Načítavam 3D model…</div>
+  </div>
+  <div class="viz-row" style="justify-content:space-between;margin-bottom:12px">
+    <span id="fridge-step" aria-live="polite">01 / 08 · Základňa a nožičky</span>
+    <span id="fridge-percent" class="tabular-nums">0 %</span>
+  </div>
+  <label class="sr-only" for="fridge-timeline">Priebeh skladania</label>
+  <input id="fridge-timeline" class="form-range" type="range" min="0" max="1000" value="0" step="1">
+  <div class="viz-controls" style="margin-top:12px">
+    <button id="fridge-play" type="button" class="btn btn-primary">Pozastaviť</button>
+    <button id="fridge-explode" type="button" class="btn">Rozložiť</button>
+    <button id="fridge-assemble" type="button" class="btn">Zložiť</button>
+    <button id="fridge-door" type="button" class="btn" disabled>Otvoriť dvere</button>
+  </div>
+  <div class="text-small" style="margin-top:12px">Potiahnutím otáčate · kolieskom približujete · koncepčný model podľa predlohy</div>
+</div>
+<script type="module">
+(async()=>{
+ const root=document.getElementById('fridge-assembly');
+ const stage=root.querySelector('#fridge-stage');
+ const loading=root.querySelector('#fridge-loading');
+ try{
+ const T=await import('https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js');
+ const scene=new T.Scene();
+ const renderer=new T.WebGLRenderer({antialias:true,alpha:true});
+ renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+ renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
+ renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.35;
+ stage.appendChild(renderer.domElement);
+ renderer.domElement.setAttribute('role','img');
+ renderer.domElement.setAttribute('aria-label','Nerezová chladnička s dolnou mrazničkou. Jednotlivé diely sa postupne skladajú do celku.');
+ renderer.domElement.style.cssText='display:block;width:100%;height:100%;cursor:grab';
+ const camera=new T.PerspectiveCamera(36,1,.1,80);
+ let azimuth=.48,elevation=.16,distance=11.4;
+ const target=new T.Vector3(0,1.95,0);
+ function cameraUpdate(){const d=distance*Math.max(1,1.65/camera.aspect);camera.position.set(target.x+d*Math.sin(azimuth)*Math.cos(elevation),target.y+d*Math.sin(elevation),target.z+d*Math.cos(azimuth)*Math.cos(elevation));camera.lookAt(target);}
+ function resize(){const w=stage.clientWidth;stage.style.height=(w<450?'390px':'460px');camera.aspect=w/stage.clientHeight;camera.updateProjectionMatrix();renderer.setSize(w,stage.clientHeight,false);}
+ new ResizeObserver(resize).observe(stage);resize();
+ const ambient=new T.HemisphereLight(0xe6f4ff,0x706a62,2.5);scene.add(ambient);
+ const key=new T.DirectionalLight(0xffffff,4.5);key.position.set(3,7,5);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-6;key.shadow.camera.right=6;key.shadow.camera.top=7;key.shadow.camera.bottom=-5;key.shadow.normalBias=.025;scene.add(key);
+ const rim=new T.DirectionalLight(0xb5dfff,2.8);rim.position.set(-4,4,-3);scene.add(rim);
+ const envScene=new T.Scene();envScene.background=new T.Color(0x8a929b);
+ function panel(w,h,x,y,z){const p=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:0xffffff,side:T.DoubleSide}));p.position.set(x,y,z);p.lookAt(0,2,0);envScene.add(p);}
+ panel(3,7,-4,3,2);panel(2,6,4,3,3);panel(6,3,0,7,0);
+ const pmrem=new T.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(envScene,.06).texture;pmrem.dispose();
+ const steel=new T.MeshStandardMaterial({color:0xb6b9bb,metalness:.92,roughness:.29});
+ const sideSteel=new T.MeshStandardMaterial({color:0x8f9599,metalness:.78,roughness:.38});
+ const chrome=new T.MeshStandardMaterial({color:0xd9dfe3,metalness:1,roughness:.17});
+ const liner=new T.MeshStandardMaterial({color:0xe3e9e8,roughness:.38});
+ const dark=new T.MeshStandardMaterial({color:0x242b30,metalness:.3,roughness:.48});
+ const glass=new T.MeshPhysicalMaterial({color:0xc2e5e7,metalness:.05,roughness:.12,transparent:true,opacity:.42,depthWrite:false});
+ const copper=new T.MeshStandardMaterial({color:0xaf6e42,metalness:.8,roughness:.3});
+ const model=new T.Group();scene.add(model);
+ const parts=[];
+ function part(step,offset){const g=new T.Group();model.add(g);parts.push({g,step,offset:new T.Vector3(...offset)});return g;}
+ function box(parent,w,h,d,x,y,z,mat){const m=new T.Mesh(new T.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+ function rounded(parent,w,h,d,x,y,z,mat){const s=new T.Shape(),r=.035,a=-w/2,b=-h/2;s.moveTo(a+r,b);s.lineTo(a+w-r,b);s.quadraticCurveTo(a+w,b,a+w,b+r);s.lineTo(a+w,b+h-r);s.quadraticCurveTo(a+w,b+h,a+w-r,b+h);s.lineTo(a+r,b+h);s.quadraticCurveTo(a,b+h,a,b+h-r);s.lineTo(a,b+r);s.quadraticCurveTo(a,b,a+r,b);const geo=new T.ExtrudeGeometry(s,{depth:d-.02,bevelEnabled:true,bevelSegments:3,steps:1,bevelSize:.01,bevelThickness:.01,curveSegments:8});geo.translate(0,0,-d/2+.01);const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
+ function cylinder(parent,r,len,x,y,z,mat,horizontal=false){const m=new T.Mesh(new T.CylinderGeometry(r,r,len,24),mat);if(horizontal)m.rotation.z=Math.PI/2;m.position.set(x,y,z);m.castShadow=true;parent.add(m);return m;}
+ const base=part(0,[0,-.28,0]);box(base,1.83,.13,1.68,0,.22,0,dark);
+ for(const x of [-.73,.73])for(const z of [-.65,.65])cylinder(base,.075,.15,x,.1,z,dark);
+ const casingL=part(1,[-2.15,.25,-.15]);box(casingL,.075,3.78,1.65,-.885,2.15,0,sideSteel);
+ const casingR=part(1,[2.15,.25,-.15]);box(casingR,.075,3.78,1.65,.885,2.15,0,sideSteel);
+ const casingTop=part(1,[0,1.3,0]);box(casingTop,1.84,.09,1.65,0,4.07,0,steel);
+ const back=part(2,[0,.4,-2]);box(back,1.74,3.7,.065,0,2.15,-.81,dark);
+ const compressor=new T.Mesh(new T.SphereGeometry(.28,28,20),dark);compressor.scale.set(1.25,.8,1);compressor.position.set(0,.53,-1.09);back.add(compressor);
+ for(let i=0;i<19;i++)cylinder(back,.016,1.42,0,1.13+i*.135,-.875,dark,true);
+ for(const x of [-.65,.65])cylinder(back,.022,2.55,x,2.33,-.885,copper);
+ const inner=part(3,[0,.2,1.8]);
+ box(inner,1.68,3.55,.055,0,2.25,-.715,liner);
+ box(inner,.065,3.55,1.44,-.8,2.25,.015,liner);box(inner,.065,3.55,1.44,.8,2.25,.015,liner);
+ box(inner,1.6,.065,1.44,0,3.99,.015,liner);box(inner,1.6,.075,1.44,0,.49,.015,liner);
+ box(inner,1.63,.12,1.49,0,1.43,.02,liner);
+ box(inner,1.1,.13,.04,0,3.77,-.65,dark);
+ for(let i=0;i<9;i++)box(inner,.075,.07,.02,-.44+i*.11,3.77,-.62,sideSteel);
+ const led=new T.MeshStandardMaterial({color:0xe0faff,emissive:0xb5eaff,emissiveIntensity:2});box(inner,.95,.028,.1,0,3.89,-.1,led);
+ const shelves=part(4,[-2.1,0,1.15]);
+ for(const y of [2,2.62,3.22]){box(shelves,1.53,.025,1.24,0,y,.06,glass);box(shelves,1.54,.045,.04,0,y,.67,chrome);for(const x of [-.75,.75])box(shelves,.035,.07,1.23,x,y-.03,.05,liner);}
+ function drawer(parent,y,h){box(parent,1.49,.04,1.19,0,y,.03,glass);box(parent,1.49,h,.035,0,y+h/2,.63,glass);box(parent,1.49,h,.035,0,y+h/2,-.54,glass);for(const x of [-.73,.73])box(parent,.035,h,1.17,x,y+h/2,.03,glass);box(parent,.57,.035,.06,0,y+h-.05,.67,liner);}
+ const bins=part(5,[2.05,-.1,1.1]);drawer(bins,1.52,.38);drawer(bins,.53,.32);drawer(bins,.92,.32);
+ const doorUpper=part(6,[-1.25,.4,2.15]);const hingeUpper=new T.Group();hingeUpper.position.set(-.87,2.77,.86);doorUpper.add(hingeUpper);
+ const doorLower=part(6,[1.3,-.1,2.2]);const hingeLower=new T.Group();hingeLower.position.set(-.87,.85,.86);doorLower.add(hingeLower);
+ function door(hinge,height){rounded(hinge,1.8,height,.15,.87,0,.05,steel);box(hinge,1.71,height-.075,.025,.87,0,-.045,dark);box(hinge,1.62,height-.16,.045,.87,0,-.07,liner);}
+ door(hingeUpper,2.51);door(hingeLower,1.2);
+ for(const y of [-.8,0,.72]){box(hingeUpper,1.39,.05,.21,.87,y,-.2,liner);box(hingeUpper,1.39,.2,.025,.87,y+.1,-.31,glass);}
+ const upperHandle=part(7,[2.6,.4,2.5]);const lowerHandle=part(7,[-2.4,-.25,2.5]);
+ function handleVertical(g){cylinder(g,.027,1.6,1.56,0,.23,chrome);for(const y of [-.72,.72])box(g,.05,.05,.12,1.56,y,.18,chrome);}
+ handleVertical(upperHandle);cylinder(lowerHandle,.027,1.55,.87,.4,.23,chrome,true);for(const x of [.18,1.56])box(lowerHandle,.045,.045,.12,x,.4,.18,chrome);
+ const logoCanvas=document.createElement('canvas');logoCanvas.width=512;logoCanvas.height=256;const ctx=logoCanvas.getContext('2d');
+ ctx.strokeStyle='#568f9e';ctx.lineWidth=7;ctx.translate(256,72);for(let a=0;a<6;a++){ctx.save();ctx.rotate(a*Math.PI/3);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-45);ctx.moveTo(0,-24);ctx.lineTo(-14,-36);ctx.moveTo(0,-24);ctx.lineTo(14,-36);ctx.stroke();ctx.restore();}ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#183346';ctx.font='bold 48px Arial';ctx.textAlign='center';ctx.fillText('MRAZÍK',256,181);
+ const logoTexture=new T.CanvasTexture(logoCanvas);logoTexture.colorSpace=T.SRGBColorSpace;
+ const logo=new T.Mesh(new T.PlaneGeometry(.61,.305),new T.MeshBasicMaterial({map:logoTexture,transparent:true,depthWrite:false}));logo.position.set(.87,.44,.137);hingeUpper.add(logo);
+ const ground=new T.Mesh(new T.PlaneGeometry(200,200),new T.ShadowMaterial({opacity:.14}));ground.rotation.x=-Math.PI/2;ground.position.y=.01;ground.receiveShadow=true;scene.add(ground);
+ const names=['Základňa a nožičky','Nerezový korpus','Chladiaca sústava','Vnútorná vaňa a osvetlenie','Sklenené police','Zásuvky a mraznička','Dvere a tesnenia','Rukoväte · hotovo'];
+ const timeline=root.querySelector('#fridge-timeline'),play=root.querySelector('#fridge-play'),doorButton=root.querySelector('#fridge-door');
+ let progress=0,playing=!matchMedia('(prefers-reduced-motion: reduce)').matches,open=false,doorAngle=0,lastStep=-1,transition=null;
+ function restore(state){const s=state?.modelContent;if(s&&Number.isFinite(s.progress)){progress=T.MathUtils.clamp(s.progress,0,1);open=!!s.open&&progress===1;playing=false;}const p=state?.privateContent;if(p&&Number.isFinite(p.azimuth)){azimuth=p.azimuth;elevation=T.MathUtils.clamp(p.elevation||.16,-.3,.8);distance=T.MathUtils.clamp(p.distance||11.4,5,18);}}
+ restore(window.openai?.widgetState);
+ window.addEventListener('openai:set_globals',e=>{restore(e.detail?.globals?.widgetState);transition=null;});
+ function save(){window.openai?.setWidgetState({modelContent:{progress,open},privateContent:{azimuth,elevation,distance}})?.catch(()=>{});}
+ function ease(t){return t*t*(3-2*t);}
+ function update(){
+  for(const p of parts){const t=ease(T.MathUtils.clamp(progress*8-p.step,0,1));p.g.position.copy(p.offset).multiplyScalar(1-t);}
+  hingeUpper.rotation.y=-doorAngle;hingeLower.rotation.y=-doorAngle*.72;
+  for(const [handle,hinge,doorGroup] of [[upperHandle,hingeUpper,doorUpper],[lowerHandle,hingeLower,doorLower]]){const p=parts.find(p=>p.g===handle);const t=ease(T.MathUtils.clamp(progress*8-7,0,1));handle.position.copy(p.offset).multiplyScalar(1-t).add(hinge.position).add(doorGroup.position);handle.rotation.y=hinge.rotation.y;}
+  timeline.value=Math.round(progress*1000);root.querySelector('#fridge-percent').textContent=Math.round(progress*100)+' %';
+  const step=Math.min(7,Math.floor(progress*8));if(step!==lastStep){root.querySelector('#fridge-step').textContent=String(step+1).padStart(2,'0')+' / 08 · '+names[step];lastStep=step;}
+  play.textContent=playing?'Pozastaviť':progress>=1?'Prehrať znova':'Prehrať';doorButton.disabled=progress<1;doorButton.textContent=open?'Zavrieť dvere':'Otvoriť dvere';
+ }
+ play.onclick=()=>{transition=null;if(progress>=1){progress=0;open=false;doorAngle=0;}playing=!playing;save();};
+ timeline.oninput=()=>{progress=Number(timeline.value)/1000;playing=false;transition=null;open=false;doorAngle=0;};timeline.onchange=save;
+ function moveTo(value){open=false;doorAngle=0;playing=false;transition={from:progress,to:value,time:0};if(matchMedia('(prefers-reduced-motion: reduce)').matches){progress=value;transition=null;save();}}
+ root.querySelector('#fridge-explode').onclick=()=>moveTo(0);root.querySelector('#fridge-assemble').onclick=()=>moveTo(1);
+ doorButton.onclick=()=>{open=!open;save();};
+ let drag=null;
+ renderer.domElement.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY};renderer.domElement.setPointerCapture(e.pointerId);renderer.domElement.style.cursor='grabbing';};
+ renderer.domElement.onpointermove=e=>{if(!drag)return;azimuth-=(e.clientX-drag.x)*.007;elevation=T.MathUtils.clamp(elevation+(e.clientY-drag.y)*.005,-.3,.8);drag={x:e.clientX,y:e.clientY};};
+ function endDrag(){drag=null;renderer.domElement.style.cursor='grab';save();}renderer.domElement.onpointerup=endDrag;renderer.domElement.onpointercancel=endDrag;
+ renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();distance=T.MathUtils.clamp(distance+e.deltaY*.008,5,18);save();},{passive:false});
+ loading.remove();let previous=performance.now();
+ function frame(now){if(!root.isConnected){renderer.dispose();return;}const dt=Math.min((now-previous)/1000,.05);previous=now;
+  if(transition){transition.time+=dt;const t=Math.min(1,transition.time/2);progress=T.MathUtils.lerp(transition.from,transition.to,ease(t));if(t===1){transition=null;save();}}
+  else if(playing){progress=Math.min(1,progress+dt/24);if(progress>=1){playing=false;save();}}
+  const goal=open?1.65:0;doorAngle+=(goal-doorAngle)*Math.min(1,dt*5);update();cameraUpdate();renderer.render(scene,camera);requestAnimationFrame(frame);
+ }requestAnimationFrame(frame);
+ }catch(error){loading.textContent='3D model sa nepodarilo načítať. Skontrolujte pripojenie a podporu WebGL.';loading.setAttribute('role','alert');console.error(error);}
+})();
+</script>
